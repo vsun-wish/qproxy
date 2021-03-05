@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	grpcgw_runtime "github.com/grpc-ecosystem/grpc-gateway/runtime"
+	grpcgw_runtime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/wish/qproxy/gateway"

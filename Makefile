@@ -1,15 +1,15 @@
-PGG     := bin/protoc-gen-go
-FFJ     := bin/ffjson
-PGIT    := bin/protoc-go-inject-tag
-PGGG    := bin/protoc-gen-grpc-gateway
-PKGS    := $(shell go list ./... | grep -v vendor | grep -v rpc)
+PGG     := protoc-gen-go
+FFJ     := ffjson
+PGIT    := protoc-go-inject-tag
+PGGG    := protoc-gen-grpc-gateway
+PKGS    := $(shell go list ./... | grep -v rpc)
 
 VERSION := $(shell git describe --tags 2> /dev/null || echo "unreleased")
 V_DIRTY := $(shell git describe --exact-match HEAD 2> /dev/null > /dev/null || echo "-unreleased")
 GIT     := $(shell git rev-parse --short HEAD)
 DIRTY   := $(shell git diff-index --quiet HEAD 2> /dev/null > /dev/null || echo "-dirty")
 
-GOFILES := $(shell find . -type f | grep go$$ ) rpc/qproxy.pb_ffjson.go rpc/qproxy.pb_jsonpb.go
+GOFILES := $(shell find . -type f | grep go$$ ) rpc/qproxy.pb_ffjson.go
 
 default: build/qproxy.linux
 
@@ -28,30 +28,38 @@ build/qproxy.darwin: ${GOFILES}
 		github.com/wish/qproxy/cmd/qproxy
 
 # all .go files are deps, so these are fine specified as such:
-rpc/qproxy.pb.go: ${PGG} ${PGIT} rpc/qproxy.proto
+rpc/qproxy.pb.go: rpc/qproxy.proto
 	@echo "protoc $@"
-	@protoc --plugin=${PGG} \
+	@protoc \
 	        -I /usr/local/include -I.\
 	        -I third_party/googleapis \
 		-I rpc/ rpc/qproxy.proto \
-		--go_out=plugins=grpc:.
+		--go_out=.
 	@sed s/,omitempty// $@ > $@.tmp
 	@mv $@.tmp $@
 	@${PGIT} -input=$@ 2> /dev/null
 
-rpc/qproxy.pb.gw.go: ${PGGG} rpc/qproxy.proto
+# all .go files are deps, so these are fine specified as such:
+rpc/qproxy_grpc.pb.go: rpc/qproxy.proto
+	@echo "protoc $@"
+	@protoc \
+	        -I /usr/local/include -I.\
+	        -I third_party/googleapis \
+		-I rpc/ rpc/qproxy.proto \
+		--go-grpc_opt=require_unimplemented_servers=false \
+		--go-grpc_out=.
+
+rpc/qproxy.pb.gw.go: rpc/qproxy.proto
 	@echo "protoc $@"
 	@protoc -I /usr/local/include -I. \
 		-I third_party/googleapis \
-		--plugin=$(PGGG) \
+		--grpc-gateway_opt paths=source_relative \
+        --grpc-gateway_opt generate_unbound_methods=true \
 		--grpc-gateway_out=logtostderr=true:. rpc/qproxy.proto
 
-rpc/qproxy.pb_ffjson.go: ${FFJ} rpc/qproxy.pb.go rpc/qproxy.pb.gw.go
+rpc/qproxy.pb_ffjson.go: rpc/qproxy.pb.go rpc/qproxy.pb.gw.go rpc/qproxy_grpc.pb.go
 	@rm -f rpc/qproxy.pb_jsonpb.go
-	bin/ffjson rpc/qproxy.pb.go
-
-rpc/qproxy.pb_jsonpb.go: rpc/qproxy.pb_ffjson.go
-	@cp rpc/qproxy.pb_jsonpb.go.stub rpc/qproxy.pb_jsonpb.go
+	ffjson rpc/qproxy.pb.go
 
 .PHONY: coverage
 coverage:
