@@ -1,7 +1,6 @@
-PGG     := protoc-gen-go
-FFJ     := ffjson
-PGIT    := protoc-go-inject-tag
-PGGG    := protoc-gen-grpc-gateway
+PGG := $(GOPATH)/bin/protoc-gen-go
+PGGG := $(GOPATH)/bin/protoc-gen-grpc-gateway
+FFJ := $(GOPATH)/bin/ffjson
 PKGS    := $(shell go list ./... | grep -v rpc)
 
 VERSION := $(shell git describe --tags 2> /dev/null || echo "unreleased")
@@ -28,7 +27,7 @@ build/qproxy.darwin: ${GOFILES}
 		github.com/wish/qproxy/cmd/qproxy
 
 # all .go files are deps, so these are fine specified as such:
-rpc/qproxy.pb.go: rpc/qproxy.proto
+rpc/qproxy.pb.go: rpc/qproxy.proto ${PGG}
 	@echo "protoc $@"
 	@protoc \
 	        -I /usr/local/include -I.\
@@ -40,7 +39,7 @@ rpc/qproxy.pb.go: rpc/qproxy.proto
 	@${PGIT} -input=$@ 2> /dev/null
 
 # all .go files are deps, so these are fine specified as such:
-rpc/qproxy_grpc.pb.go: rpc/qproxy.proto
+rpc/qproxy_grpc.pb.go: rpc/qproxy.proto ${PGG}
 	@echo "protoc $@"
 	@protoc \
 	        -I /usr/local/include -I.\
@@ -49,7 +48,7 @@ rpc/qproxy_grpc.pb.go: rpc/qproxy.proto
 		--go-grpc_opt=require_unimplemented_servers=false \
 		--go-grpc_out=.
 
-rpc/qproxy.pb.gw.go: rpc/qproxy.proto
+rpc/qproxy.pb.gw.go: rpc/qproxy.proto ${PGGG}
 	@echo "protoc $@"
 	@protoc -I /usr/local/include -I. \
 		-I third_party/googleapis \
@@ -57,7 +56,7 @@ rpc/qproxy.pb.gw.go: rpc/qproxy.proto
         --grpc-gateway_opt generate_unbound_methods=true \
 		--grpc-gateway_out=logtostderr=true:. rpc/qproxy.proto
 
-rpc/qproxy.pb_ffjson.go: rpc/qproxy.pb.go rpc/qproxy.pb.gw.go rpc/qproxy_grpc.pb.go
+rpc/qproxy.pb_ffjson.go: rpc/qproxy.pb.go rpc/qproxy.pb.gw.go rpc/qproxy_grpc.pb.go ${FFJ}
 	@rm -f rpc/qproxy.pb_jsonpb.go
 	ffjson rpc/qproxy.pb.go
 
@@ -93,18 +92,13 @@ build/checksums.256: build/qproxy.linux build/qproxy.darwin
 	@cd build && shasum -a 256 * > checksums.256
 
 $(PGG):
-	@echo "$@"
-	@go build -o $(PGG) ./vendor/github.com/golang/protobuf/protoc-gen-go
+	@go get -u github.com/golang/protobuf/protoc-gen-go
+	@go get -u google.golang.org/grpc/cmd/protoc-gen-go-grpc
 
 $(FFJ):
-	@echo "$@"
-	@go build -o $(FFJ) ./vendor/github.com/pquerna/ffjson
-
-$(PGIT):
-	@echo "$@"
-	@go build -o $(PGIT) ./vendor/github.com/favadi/protoc-go-inject-tag
+	@go get -u github.com/pquerna/ffjson
 
 $(PGGG):
-	@echo "$@"
-	@go build -o $(PGGG) ./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
+	@go get -u github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway
+	@go get -u github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2
 
